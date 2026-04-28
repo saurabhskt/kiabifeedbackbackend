@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import {Injectable, ConflictException, Logger} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SurveySession } from './survey-session.entity';
@@ -7,6 +7,8 @@ import { SubmitSurveyDto } from './survey.dto';
 
 @Injectable()
 export class SurveyService {
+
+  private readonly logger = new Logger(SurveyService.name);
   constructor(
     @InjectRepository(SurveySession)
     private readonly sessionRepo: Repository<SurveySession>,
@@ -15,6 +17,7 @@ export class SurveyService {
   ) {}
 
   async submit(dto: SubmitSurveyDto): Promise<{ id: number; sessionId: string }> {
+    this.logger.log('Creating new survey session', { payload: JSON.stringify(dto) });
     // Check duplicate sessionId (idempotency)
     const existingSession = await this.sessionRepo.findOne({
       where: { sessionId: dto.sessionId },
@@ -23,15 +26,7 @@ export class SurveyService {
       return { id: existingSession.id, sessionId: existingSession.sessionId };
     }
 
-    // Check duplicate contact — throw 409 so frontend knows
-    const existingContact = await this.sessionRepo.findOne({
-      where: { contact: dto.userProfile.contact },
-    });
-    if (existingContact) {
-      throw new ConflictException(
-          `Survey already completed by this contact`
-      );
-    }
+
 
     const { userProfile, answers, skippedCardIds, incomeBracket, completedAt } = dto;
     const yesCount  = answers.filter(a => a.answer === 'yes').length;
@@ -46,7 +41,7 @@ export class SurveyService {
       userEmployment: userProfile.employmentStatus,
       incomeBracket,
       totalAnswered:  answers.length,
-      totalSkipped:   skippedCardIds.length,
+      totalSkipped:   0,
       yesCount,
       nopeCount,
       skippedCardIds,
@@ -173,5 +168,20 @@ export class SurveyService {
         nopeCount:     session.nopeCount,
       },
     };
+  }
+  async saveComment(
+      sessionId: string,
+      text: string | null,
+      audioFilePath: string | null,
+      audioMimeType: string | null,
+  ): Promise<void> {
+    await this.sessionRepo.update(
+        { sessionId },
+        {
+          commentText:    text ?? null,
+          audioFilePath:  audioFilePath ?? null,
+          audioMimeType:  audioMimeType ?? null,
+        },
+    );
   }
 }

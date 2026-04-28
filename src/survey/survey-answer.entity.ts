@@ -25,8 +25,8 @@ export class SurveyAnswer {
   @Column({ type: 'text' })
   statement: string;
 
-  @Column({ type: 'varchar', length: 6 })
-  answer: 'yes' | 'nope';
+  @Column({ type: 'text' })
+  answer: string;
 
   @Column({ name: 'dwell_time_ms', default: 0 })
   dwellTimeMs: number;

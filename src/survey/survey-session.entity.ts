@@ -46,6 +46,15 @@ export class SurveySession {
   @Column({ name: 'skipped_card_ids', type: 'text', array: true, default: [] })
   skippedCardIds: string[];
 
+  @Column({ name: 'comment_text', type: 'text', nullable: true })
+  commentText: string;
+
+  @Column({ name: 'audio_file_path', length: 500, nullable: true })
+  audioFilePath: string;
+
+  @Column({ name: 'audio_mime_type', length: 50, nullable: true })
+  audioMimeType: string;
+
   @Column({ name: 'completed_at', nullable: true })
   completedAt: Date;
 
