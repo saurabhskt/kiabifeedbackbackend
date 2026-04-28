@@ -7,6 +7,7 @@ import { SurveyAnswer } from './survey/survey-answer.entity';
 
 import { SurveyModule } from './survey/survey.module';
 import {validate} from "./env.validation";
+import {AppController} from "./app.controller";
 
 @Module({
   imports: [
@@ -30,5 +31,6 @@ import {validate} from "./env.validation";
 
     SurveyModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
