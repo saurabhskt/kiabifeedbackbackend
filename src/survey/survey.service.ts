@@ -69,6 +69,7 @@ export class SurveyService {
     async getStats() {
         const totalSessions = await this.sessionRepo.count();
 
+        // Per-card summary (total, yes/nope for binary cards)
         const cardStats = await this.answerRepo
             .createQueryBuilder('a')
             .select('a.card_id', 'cardId')
@@ -76,7 +77,7 @@ export class SurveyService {
             .addSelect('a.statement', 'statement')
             .addSelect('COUNT(*)', 'total')
             .addSelect(`SUM(CASE WHEN a.answer = 'yes' THEN 1 ELSE 0 END)`, 'yesCount')
-            .addSelect(`ROUND(SUM(CASE WHEN a.answer = 'yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1)`, 'yesRate')
+            .addSelect(`ROUND(SUM(CASE WHEN a.answer = 'yes' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*),0), 1)`, 'yesRate')
             .addSelect('ROUND(AVG(a.dwell_time_ms))', 'avgDwellMs')
             .groupBy('a.card_id')
             .addGroupBy('a.section')
@@ -84,11 +85,23 @@ export class SurveyService {
             .orderBy('a.section')
             .getRawMany();
 
+        // Per-card answer distribution (for choice & scale cards)
+        const answerDist = await this.answerRepo
+            .createQueryBuilder('a')
+            .select('a.card_id', 'cardId')
+            .addSelect('a.answer', 'answer')
+            .addSelect('COUNT(*)', 'count')
+            .groupBy('a.card_id')
+            .addGroupBy('a.answer')
+            .orderBy('a.card_id')
+            .addOrderBy('count', 'DESC')
+            .getRawMany();
+
         const sectionStats = await this.answerRepo
             .createQueryBuilder('a')
             .select('a.section', 'section')
             .addSelect('COUNT(*)', 'total')
-            .addSelect(`ROUND(SUM(CASE WHEN a.answer = 'yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1)`, 'yesRate')
+            .addSelect(`ROUND(SUM(CASE WHEN a.answer = 'yes' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*),0), 1)`, 'yesRate')
             .groupBy('a.section')
             .getRawMany();
 
@@ -97,19 +110,50 @@ export class SurveyService {
             .select('s.income_bracket', 'bracket')
             .addSelect('COUNT(*)', 'count')
             .groupBy('s.income_bracket')
+            .orderBy('count', 'DESC')
             .getRawMany();
 
         const demographicStats = await this.answerRepo
             .createQueryBuilder('a')
             .select('a.user_gender', 'gender')
             .addSelect('a.user_age_group', 'ageGroup')
-            .addSelect(`ROUND(SUM(CASE WHEN a.answer = 'yes' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1)`, 'yesRate')
             .addSelect('COUNT(*)', 'total')
+            .addSelect(`ROUND(SUM(CASE WHEN a.answer = 'yes' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*),0), 1)`, 'yesRate')
             .groupBy('a.user_gender')
             .addGroupBy('a.user_age_group')
+            .orderBy('a.user_gender')
             .getRawMany();
 
-        return {totalSessions, cardStats, sectionStats, incomeDist, demographicStats};
+        // Myntra likelihood distribution (m2 scale 1-5)
+        const myntraScale = await this.answerRepo
+            .createQueryBuilder('a')
+            .select('a.answer', 'answer')
+            .addSelect('COUNT(*)', 'count')
+            .where('a.card_id = :id', { id: 'm2' })
+            .groupBy('a.answer')
+            .orderBy('a.answer')
+            .getRawMany();
+
+        // NPS distribution (r1 scale 0-10)
+        const npsScale = await this.answerRepo
+            .createQueryBuilder('a')
+            .select('a.answer', 'answer')
+            .addSelect('COUNT(*)', 'count')
+            .where('a.card_id = :id', { id: 'r1' })
+            .groupBy('a.answer')
+            .orderBy('a.answer')
+            .getRawMany();
+
+        return {
+            totalSessions,
+            cardStats,
+            answerDist,
+            sectionStats,
+            incomeDist,
+            demographicStats,
+            myntraScale,
+            npsScale,
+        };
     }
 
     async getCardBreakdown(cardId: string) {
@@ -120,7 +164,7 @@ export class SurveyService {
             .addSelect('a.user_age_group', 'ageGroup')
             .addSelect('a.user_employment', 'employment')
             .addSelect('COUNT(*)', 'count')
-            .where('a.card_id = :cardId', {cardId})
+            .where('a.card_id = :cardId', { cardId })
             .groupBy('a.answer')
             .addGroupBy('a.user_gender')
             .addGroupBy('a.user_age_group')
