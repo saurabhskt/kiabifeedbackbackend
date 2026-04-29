@@ -65,7 +65,6 @@ export class SurveyService {
         return {id: saved.id, sessionId: saved.sessionId};
     }
 
-    /** Overall stats */
     async getStats() {
         const totalSessions = await this.sessionRepo.count();
 
@@ -134,7 +133,7 @@ export class SurveyService {
             .orderBy('a.answer')
             .getRawMany();
 
-        // NPS distribution (r1 scale 0-10)
+        // Recommendation distribution (r1 scale 1-5)
         const npsScale = await this.answerRepo
             .createQueryBuilder('a')
             .select('a.answer', 'answer')
@@ -174,44 +173,37 @@ export class SurveyService {
 
     async getSkipStats() {
         return this.sessionRepo.query(`
-            SELECT unnest(skipped_card_ids) AS card_id, COUNT(*) AS skip_count
-            FROM survey_sessions
-            GROUP BY card_id
-            ORDER BY skip_count DESC
-        `);
+      SELECT unnest(skipped_card_ids) AS card_id, COUNT(*) AS skip_count
+      FROM survey_sessions GROUP BY card_id ORDER BY skip_count DESC
+    `);
     }
 
-    /** Admin: all sessions for CSV export */
     async getAllSessions() {
-        return this.sessionRepo.find({order: {createdAt: 'DESC'}});
+        return this.sessionRepo.find({ order: { createdAt: 'DESC' } });
     }
 
-    /** Admin: all answers for CSV export */
     async getAllAnswers() {
-        return this.answerRepo.find({order: {answeredAt: 'DESC'}});
+        return this.answerRepo.find({ order: { answeredAt: 'DESC' } });
     }
 
-    async checkContact(contact: string): Promise<{
-        completed: boolean; userName?: string;
-        summary?: { totalAnswered: number; totalSkipped: number; yesCount: number; nopeCount: number };
-    }> {
-        const session = await this.sessionRepo.findOne({where: {contact}});
-        if (!session) return {completed: false};
+    async checkContact(contact: string) {
+        const session = await this.sessionRepo.findOne({ where: { contact } });
+        if (!session) return { completed: false };
         return {
             completed: true,
             userName: session.userName,
             summary: {
                 totalAnswered: session.totalAnswered,
-                totalSkipped: session.totalSkipped,
-                yesCount: session.yesCount,
-                nopeCount: session.nopeCount,
+                totalSkipped:  session.totalSkipped,
+                yesCount:      session.yesCount,
+                nopeCount:     session.nopeCount,
             },
         };
     }
 
-    async saveComment(sessionId: string, text: string | null, audioFilePath: string | null, audioMimeType: string | null): Promise<void> {
-        await this.sessionRepo.update({sessionId}, {
-            commentText: text ?? null,
+    async saveComment(sessionId: string, text: string | null, audioFilePath: string | null, audioMimeType: string | null) {
+        await this.sessionRepo.update({ sessionId }, {
+            commentText:   text ?? null,
             audioFilePath: audioFilePath ?? null,
             audioMimeType: audioMimeType ?? null,
         });
